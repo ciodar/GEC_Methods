@@ -18,10 +18,11 @@ def yield_tokens(data_iter: Iterable, index: int) -> List[str]:
             yield token_transform(data_sample[index])
 
 
-def build_vocab(dataset_iterator, col=1, vocab_size=None, out_folder=None):
+def build_vocab(dataset_iterator, col=1, vocab_size=None, out_folder=None,filename='vocab.pth'):
+    # Define special symbols and indices
     UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
-    # # Make sure the tokens are in order of their indices to properly insert them in vocab
-    special_symbols = ['<pad>', '<unk>', '[CLS]', '[SEP]']
+    # Make sure the tokens are in order of their indices to properly insert them in vocab
+    special_symbols = ['<UNK>', '<PAD>', '<BOS>', '<EOS>']
 
     # Create torchtext's Vocab object
     vocab_transform = build_vocab_from_iterator(yield_tokens(train_iter, col),
@@ -30,13 +31,13 @@ def build_vocab(dataset_iterator, col=1, vocab_size=None, out_folder=None):
                                                 special_first=True)
     print("Built vocabulary")
     vocab_transform.set_default_index(UNK_IDX)
-    torch.save(vocab_transform, pl.Path(out_folder) / 'vocab.pth')
+    torch.save(vocab_transform, pl.Path(out_folder) / filename)
 
 
 def load_pretrained_embs(embedding_path, vocab_npa, vocab_size=None):
     UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
     # # Make sure the tokens are in order of their indices to properly insert them in vocab
-    special_symbols = ['<pad>', '<unk>', '[CLS]', '[SEP]']
+    special_symbols = ['<unk>','<pad>', '[CLS]', '[SEP]']
 
     vocab, embeddings = [], []
     with open(embedding_path, 'rt', encoding='utf-8') as fi:
@@ -68,7 +69,7 @@ def load_pretrained_embs(embedding_path, vocab_npa, vocab_size=None):
     bos_emb_npa = np.random.rand(1, embs_npa.shape[1])
     eos_emb_npa = np.random.rand(1, embs_npa.shape[1])
     # insert embeddings for pad and unk tokens at top of embs_npa.
-    embs_npa = np.vstack((pad_emb_npa, unk_emb_npa, embs_npa, bos_emb_npa, eos_emb_npa))
+    embs_npa = np.vstack((unk_emb_npa, pad_emb_npa, bos_emb_npa, eos_emb_npa, embs_npa))
     return embs_npa, vocab_npa
 
     # print(embs_npa.shape)
@@ -79,10 +80,10 @@ def load_pretrained_embs(embedding_path, vocab_npa, vocab_size=None):
 
 if __name__ == "__main__":
     folder = "D:\\Datasets\\c4_200m\\data\\hdf5"
-    vocab_folder = "D:\\Datasets\\c4_200m\\checkpoints"
+    vocab_folder = "vocab/"
     train_filename = 'C4_200M.hf5-00000-of-00010'
 
     N_SAMPLES = 1000000
 
     train_iter = Hdf5Dataset(pl.Path(folder) / train_filename, num_entries=N_SAMPLES)
-    build_vocab(train_iter, out_folder=vocab_folder,vocab_size=20000)
+    build_vocab(train_iter, out_folder=vocab_folder,vocab_size=20000,filename='vocab_20K.pth')

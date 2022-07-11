@@ -46,9 +46,11 @@ class Decoder(nn.Module):
 
         self.rnn = nn.GRU(emb_dim + hid_dim, hid_dim)
 
+        # self.fc_out = nn.Linear(hid_dim, output_dim)
         self.fc_out = nn.Linear(emb_dim + hid_dim * 2, output_dim)
 
         self.dropout = nn.Dropout(dropout)
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input, hidden, context):
 
@@ -67,11 +69,9 @@ class Decoder(nn.Module):
         embedded = self.dropout(self.embedding(input))
 
         #embedded = [1, batch size, emb dim]
-
         emb_con = torch.cat((embedded, context), dim = 2)
 
         #emb_con = [1, batch size, emb dim + hid dim]
-
         output, hidden = self.rnn(emb_con, hidden)
 
         #output = [seq len, batch size, hid dim * n directions]
@@ -81,12 +81,11 @@ class Decoder(nn.Module):
         #output = [1, batch size, hid dim]
         #hidden = [1, batch size, hid dim]
 
-        output = torch.cat((embedded.squeeze(0), hidden.squeeze(0), context.squeeze(0)),
-                           dim = 1)
+        output = torch.cat((embedded.squeeze(0), hidden.squeeze(0), context.squeeze(0)),dim = 1)
 
         #output = [batch size, emb dim + hid dim * 2]
 
-        prediction = self.fc_out(output)
+        prediction = self.softmax(self.fc_out(output))
 
         #prediction = [batch size, output dim]
 
