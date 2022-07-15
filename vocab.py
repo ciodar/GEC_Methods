@@ -34,43 +34,45 @@ def build_vocab(dataset_iterator, col=1, vocab_size=None, out_folder=None,filena
     torch.save(vocab_transform, pl.Path(out_folder) / filename)
 
 
-def load_pretrained_embs(embedding_path, vocab_npa, vocab_size=None):
+def load_pretrained_embs(embedding_path, vocab):
     UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
     # # Make sure the tokens are in order of their indices to properly insert them in vocab
-    special_symbols = ['<unk>','<pad>', '[CLS]', '[SEP]']
+    special_symbols = ['<UNK>','<PAD>', '<BOS>', '<EOS>']
 
-    vocab, embeddings = [], []
-    with open(embedding_path, 'rt', encoding='utf-8') as fi:
-        full_content = fi.read().strip().split('\n')
-        if vocab_size is None:
-            vocab_size = len(full_content)
-    for i in tqdm(range(vocab_size)):
-        i_word = full_content[i].split(' ')[0]
-        i_embeddings = [float(val) for val in full_content[i].split(' ')[1:]]
-        vocab.append(i_word)
-        embeddings.append(i_embeddings)
+    embeddings_index = dict()
+    f = open(embedding_path, encoding="utf-8")
 
-    vocab_npa = np.array(vocab)
-    embs_npa = np.array(embeddings)
+    for line in f:
+        values = line.split()
+        word = values[0]
+        coefs = np.asarray(values[1:], dtype='float32')
+        embeddings_index[word] = coefs
 
+    vocab_size = len(vocab.vocab.itos_)
+
+    embedding_matrix = np.zeros((vocab_size, 300))
+    missing = 0
+
+    for i, word, in tqdm(enumerate(vocab.vocab.itos_)):
+        embedding_vector = embeddings_index.get(word)
+        if embedding_vector is not None:
+            embedding_matrix[i] = embedding_vector
+        else:
+            missing = missing +1
+    print("Built embeddings. %d embedding missing"%missing)
     # pre-trained embeddings
-    vocab_npa = np.insert(vocab_npa, UNK_IDX, '<pad>')
-    vocab_npa = np.insert(vocab_npa, PAD_IDX, '<unk>')
-    vocab_npa = np.insert(vocab_npa, BOS_IDX, '<bos>')
-    vocab_npa = np.insert(vocab_npa, EOS_IDX, '<eos>')
 
-    vocab_npa.set_default_index(UNK_IDX)
+    vocab.set_default_index(UNK_IDX)
     # Set UNK_IDX as the default index. This index is returned when the token is not found.
     # If not set, it throws RuntimeError when the queried token is not found in the Vocabulary.
 
     # print(vocab_npa[:10])
-    pad_emb_npa = np.zeros((1, embs_npa.shape[1]))  # embedding for '<pad>' token.
-    unk_emb_npa = np.mean(embs_npa, axis=0, keepdims=True)  # embedding for '<unk>' token.
-    bos_emb_npa = np.random.rand(1, embs_npa.shape[1])
-    eos_emb_npa = np.random.rand(1, embs_npa.shape[1])
+    embedding_matrix[1,:] = np.zeros((1, embedding_matrix.shape[1]))  # embedding for '<pad>' token.
+    embedding_matrix[0,:] = np.mean(embedding_matrix, axis=0, keepdims=True)  # embedding for '<unk>' token.
+    embedding_matrix[2,:] = np.random.rand(1, embedding_matrix.shape[1])
+    embedding_matrix[3,:] = np.random.rand(1, embedding_matrix.shape[1])
     # insert embeddings for pad and unk tokens at top of embs_npa.
-    embs_npa = np.vstack((unk_emb_npa, pad_emb_npa, bos_emb_npa, eos_emb_npa, embs_npa))
-    return embs_npa, vocab_npa
+    return embedding_matrix, vocab
 
     # print(embs_npa.shape)
     # vec = Vectors(embedding_path)
@@ -86,4 +88,11 @@ if __name__ == "__main__":
     N_SAMPLES = 1000000
 
     train_iter = Hdf5Dataset(pl.Path(folder) / train_filename, num_entries=N_SAMPLES)
+
+    #Build vocabulary
     build_vocab(train_iter, out_folder=vocab_folder,vocab_size=20000,filename='vocab_20K.pth')
+
+    #Build embeddings
+    vocab = torch.load('vocab/vocab_20K.pth')
+    embeddings, vocab = load_pretrained_embs(pl.Path('D:\Datasets\glove')/'glove.42B.300d.txt',vocab)
+    torch.save(embeddings, pl.Path('vocab') / 'glove_42B_300d_20K.pth')

@@ -7,12 +7,15 @@ import torch.nn.functional as F
 MAX_LENGTH = 512
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, emb_dim, hid_dim, dropout):
+    def __init__(self, input_dim, emb_dim, hid_dim, dropout,embedding_weights=None):
         super().__init__()
 
         self.hid_dim = hid_dim
 
-        self.embedding = nn.Embedding(input_dim, emb_dim) #no dropout as only one layer!
+        self.embedding = nn.Embedding(input_dim, emb_dim,padding_idx=1)
+
+        if embedding_weights is not None:
+            self.embedding.weight = torch.nn.Parameter(torch.from_numpy(embedding_weights))
 
         self.rnn = nn.GRU(emb_dim, hid_dim)
 
@@ -22,7 +25,7 @@ class Encoder(nn.Module):
 
         #src = [src len, batch size]
 
-        embedded = self.dropout(self.embedding(src))
+        embedded = self.dropout(self.embedding(src).float())
 
         #embedded = [src len, batch size, emb dim]
 
@@ -36,13 +39,16 @@ class Encoder(nn.Module):
         return hidden
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, emb_dim, hid_dim, dropout):
+    def __init__(self, output_dim, emb_dim, hid_dim, dropout,embedding_weights=None):
         super().__init__()
 
         self.hid_dim = hid_dim
         self.output_dim = output_dim
 
-        self.embedding = nn.Embedding(output_dim, emb_dim)
+        self.embedding = nn.Embedding(output_dim, emb_dim,padding_idx=1)
+
+        if embedding_weights is not None:
+            self.embedding.weight = torch.nn.Parameter(torch.from_numpy(embedding_weights))
 
         self.rnn = nn.GRU(emb_dim + hid_dim, hid_dim)
 
@@ -66,7 +72,7 @@ class Decoder(nn.Module):
 
         #input = [1, batch size]
 
-        embedded = self.dropout(self.embedding(input))
+        embedded = self.dropout(self.embedding(input).float())
 
         #embedded = [1, batch size, emb dim]
         emb_con = torch.cat((embedded, context), dim = 2)
