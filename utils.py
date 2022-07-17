@@ -137,6 +137,18 @@ class Hdf5Dataset(Dataset):
     def __len__(self):
         return self.num_entries
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
+
+def showPlot(points):
+    plt.figure()
+    fig, ax = plt.subplots()
+    # this locator puts ticks at regular intervals
+    loc = ticker.MultipleLocator(base=0.2)
+    ax.yaxis.set_major_locator(loc)
+    plt.plot(points)
+
 # # Define special symbols and indices
 # UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
 # # Make sure the tokens are in order of their indices to properly insert them in vocab
