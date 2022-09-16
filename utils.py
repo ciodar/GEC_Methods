@@ -31,12 +31,15 @@ def folder_to_dp(p):
     return datapipe
 
 
-def csv_to_hf5(csv_path, num_lines=1000000, chunksize=100000, columns=None):
+def csv_to_hf5(csv_path, num_lines=1000000, chunksize=100000, columns=None,filename=None):
     if columns is None:
         columns = ['input', 'labels']
     csv_path = pl.Path(csv_path)
 
-    hdf_filename = csv_path.parent / pl.Path(csv_path).name.replace('.tsv', '.hf5')
+    if filename is None:
+        hdf_filename = csv_path.parent.parent/ 'hdf5' / csv_path.name.replace('.tsv', '.h5')
+    else:
+        hdf_filename = csv_path.parent / filename
 
     # suppose this is a large CSV that does not
     # fit into memory:
@@ -53,15 +56,11 @@ def csv_to_hf5(csv_path, num_lines=1000000, chunksize=100000, columns=None):
 
         # use num_features-1 if the csv file has a column header
         # store = pd.HDFStore(hdf_filename,format="table")
-        dset1 = h5f.create_dataset('input',
-                                   shape=(num_lines,),
-                                   compression=4,
-                                   dtype=dt
-                                   )
-        dset2 = h5f.create_dataset('labels',
-                                   shape=(num_lines,),
-                                   compression=4,
-                                   dtype=dt
+        dset1 = h5f.create_dataset('text',
+                                   shape=(2,num_lines,),
+                                   compression="gzip",
+                                   dtype=dt,
+                                   chunks=True
                                    )
 
         times = []
@@ -81,8 +80,8 @@ def csv_to_hf5(csv_path, num_lines=1000000, chunksize=100000, columns=None):
             # store.append(value=)
             start_time = time.time()
             # use i-1 and i-1+10 if csv file has a column header
-            dset1[i:i + chunksize] = features
-            dset2[i:i + chunksize] = labels
+            dset1[0,i:i + chunksize] = features
+            dset1[1,i:i + chunksize] = labels
             elapsed_time = time.time() - start_time
             times.append(elapsed_time)
     return times
@@ -111,7 +110,23 @@ class CSVDataset(Dataset):
         labels = data.iloc[:, 1].values.astype(str)
         return list(zip(inputs,labels))
 
+class ParquetDataset(Dataset):
+    """Custom Dataset for loading entries from HDF5 databases"""
 
+    def __init__(self, pq_path, transform=None,num_entries = None):
+
+        self.df = pd.read_parquet(pq_path)
+        self.transform = transform
+
+    def __getitem__(self, index):
+        input = self.df['input'][index].decode('utf-8')
+        label = self.df['labels'][index].decode('utf-8')
+        if self.transform is not None:
+            features = self.transform(input)
+        return input, label
+
+    def __len__(self):
+        return self.num_entries
 
 class Hdf5Dataset(Dataset):
     """Custom Dataset for loading entries from HDF5 databases"""
@@ -187,13 +202,6 @@ if __name__ == "__main__":
             # print_rows(x)
 
     # 18386521
-    filename = 'C4_200M.tsv-00003-of-00010'
-    csv_path = pl.Path(folder) / filename
-    n = csv_line_count(csv_path)
-    elapsed = csv_to_hf5(str(csv_path),num_lines=n)
-
-    plt.plot(elapsed)
-
     # data = pd.read_csv(csv_path, sep='\t', nrows=10000)
     # hdf_filename = csv_path.parent / pl.Path(csv_path).name.replace('.tsv', '.hf5')
     #
